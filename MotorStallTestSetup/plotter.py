@@ -61,8 +61,8 @@ print(len_data, len(stalled_data), len(normal_data))
 
 # --- smooth signal (moving average) ---
 WINDOW = 5
-y_smooth = np.convolve(stalled_data, np.ones(WINDOW)/WINDOW, mode='same')
-y2_smooth = np.convolve(normal_data, np.ones(WINDOW)/WINDOW, mode='same')
+y_smooth = np.convolve(stalled_data, np.ones(WINDOW)/WINDOW, mode='same') # --- stalled current
+y2_smooth = np.convolve(normal_data, np.ones(WINDOW)/WINDOW, mode='same') # --- normal current
 
 # --- Plot ---
 fig, ax = plt.subplots(figsize=(10, 5))
