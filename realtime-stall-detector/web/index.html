@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stall Detector — Live</title>
+<style>
+  :root { --bg:#0e1116; --panel:#171c24; --line:#2a323d; --txt:#e6edf3; --mut:#8b97a5;
+          --green:#2ea043; --orange:#d29922; --red:#da3633; --blue:#388bfd; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .src { color:var(--mut); font-size:12px; }
+  .wrap { display:grid; grid-template-columns:1fr 320px; gap:16px; padding:16px 20px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  #badge { display:inline-flex; align-items:center; gap:10px; font-size:22px; font-weight:700;
+           padding:8px 18px; border-radius:8px; color:#fff; background:var(--green); transition:background .15s; }
+  .dot { width:12px; height:12px; border-radius:50%; background:#fff; opacity:.9; }
+  .readout { margin-top:12px; color:var(--mut); }
+  .readout b { color:var(--txt); font-size:20px; }
+  canvas { width:100%; height:280px; display:block; margin-top:14px; background:#0b0e12; border-radius:8px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); margin:0 0 10px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  button { font:inherit; font-weight:600; color:var(--txt); background:#222b36; border:1px solid var(--line);
+           border-radius:7px; padding:9px 12px; cursor:pointer; flex:1; }
+  button:hover { border-color:#3d4855; }
+  button.lab.active { color:#fff; }
+  button.lab[data-l="normal"].active { background:var(--green); border-color:var(--green); }
+  button.lab[data-l="startup"].active { background:var(--orange); border-color:var(--orange); }
+  button.lab[data-l="stall"].active { background:var(--red); border-color:var(--red); }
+  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+  .cnt { background:#0b0e12; border:1px solid var(--line); border-radius:7px; padding:8px; text-align:center; }
+  .cnt span { display:block; color:var(--mut); font-size:11px; text-transform:uppercase; }
+  .cnt b { font-size:18px; }
+  .stop { background:#3a2326; border-color:#5b2a2d; }
+  .act { background:var(--blue); border-color:var(--blue); color:#fff; }
+  #rec { color:var(--red); font-weight:700; margin-left:6px; }
+  button.clr { font-size:11px; padding:5px 6px; color:var(--mut); }
+  #trainout { margin-top:10px; font-size:12px; color:var(--mut); white-space:pre; font-family:ui-monospace,monospace; }
+  .hint { color:var(--mut); font-size:12px; margin-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Stall Detector — Live</h1>
+  <span class="src" id="src">connecting…</span>
+  <span id="rec"></span>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <div id="badge"><span class="dot"></span><span id="state">LIVE</span></div>
+    <div class="readout">current (window mean): <b id="mean">—</b> A</div>
+    <canvas id="chart" width="900" height="280"></canvas>
+    <div class="hint">Live current stream. Y auto-scales. Red/orange/green appear once a model is trained.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Record labeled data</h2>
+    <div class="row">
+      <button class="lab" data-l="normal">Normal</button>
+      <button class="lab" data-l="startup">Startup</button>
+      <button class="lab" data-l="stall">Stall</button>
+    </div>
+    <div class="row"><button class="stop" id="stop">■ Stop recording</button></div>
+    <div class="counts">
+      <div class="cnt"><span>normal</span><b id="c_normal">0</b></div>
+      <div class="cnt"><span>startup</span><b id="c_startup">0</b></div>
+      <div class="cnt"><span>stall</span><b id="c_stall">0</b></div>
+    </div>
+    <div class="row">
+      <button class="clr" data-l="normal">↺ clear normal</button>
+      <button class="clr" data-l="startup">↺ clear startup</button>
+      <button class="clr" data-l="stall">↺ clear stall</button>
+    </div>
+    <div class="hint" id="total">0 samples collected</div>
+
+    <h2 style="margin-top:18px">Dataset</h2>
+    <div class="row">
+      <button id="save">Save CSV</button>
+      <button id="clear">Clear</button>
+    </div>
+    <div class="row"><button class="act" id="train">Train model</button></div>
+    <div id="trainout"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const COLOR = { live:'#388bfd', normal:'#2ea043', startup:'#d29922', stall:'#da3633' };
+let activeLabel = null;
+
+async function post(url, body) {
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+                             body: JSON.stringify(body||{})});
+  return r.json();
+}
+
+document.querySelectorAll('button.lab').forEach(b => {
+  b.onclick = async () => {
+    activeLabel = b.dataset.l;
+    await post('/api/record/start', {label: activeLabel});
+  };
+});
+$('stop').onclick = () => { activeLabel = null; post('/api/record/stop'); };
+$('clear').onclick = () => post('/api/clear');
+document.querySelectorAll('button.clr').forEach(b => {
+  b.onclick = () => post('/api/clear', {label: b.dataset.l});
+});
+$('save').onclick = async () => {
+  const r = await post('/api/save');
+  $('trainout').textContent = r.ok ? `saved ${r.rows} rows -> ${r.path}` : ('error: '+r.error);
+};
+$('train').onclick = async () => {
+  $('trainout').textContent = 'training…';
+  const r = await post('/api/train');
+  if (!r.ok) { $('trainout').textContent = 'error: ' + r.error; return; }
+  const L = r.labels, cm = r.confusion;
+  let s = `trained on ${r.windows} windows\nconfusion (rows=true):\n      ` +
+          L.map(x=>x.slice(0,5).padStart(6)).join('') + '\n';
+  cm.forEach((row,i)=> s += L[i].slice(0,5).padStart(6) + row.map(v=>String(v).padStart(6)).join('') + '\n');
+  $('trainout').textContent = s;
+};
+
+// ---- live chart (self-drawn canvas) ----
+const cv = $('chart'), ctx = cv.getContext('2d');
+function resize(){ cv.width = cv.clientWidth * devicePixelRatio; cv.height = cv.clientHeight * devicePixelRatio; }
+addEventListener('resize', resize); resize();
+
+function draw(points){
+  const W = cv.width, H = cv.height, pad = 8*devicePixelRatio;
+  ctx.clearRect(0,0,W,H);
+  if (!points.length) return;
+  const ys = points.map(p=>p[1]);
+  let ymax = Math.max(...ys, 0.01) * 1.15, ymin = 0;
+  const xs = points.map(p=>p[0]);
+  const x0 = xs[0], x1 = xs[xs.length-1] || x0+1;
+  const px = t => pad + (t - x0)/(x1 - x0 || 1) * (W - 2*pad);
+  const py = v => H - pad - (v - ymin)/(ymax - ymin) * (H - 2*pad);
+  // gridlines
+  ctx.strokeStyle = '#1b212a'; ctx.lineWidth = 1*devicePixelRatio;
+  for (let i=0;i<=4;i++){ const y = pad + i*(H-2*pad)/4; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-pad,y); ctx.stroke(); }
+  // line
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 1.5*devicePixelRatio; ctx.beginPath();
+  points.forEach((p,i)=>{ const X=px(p[0]), Y=py(p[1]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+  ctx.stroke();
+  // ymax label
+  ctx.fillStyle = '#8b97a5'; ctx.font = `${11*devicePixelRatio}px sans-serif`;
+  ctx.fillText(ymax.toFixed(3)+' A', pad+2, pad+12*devicePixelRatio);
+}
+
+const es = new EventSource('/stream');
+es.onmessage = e => {
+  const d = JSON.parse(e.data);
+  draw(d.points);
+  $('mean').textContent = d.mean.toFixed(4);
+  const st = d.state;
+  $('state').textContent = st.toUpperCase();
+  $('badge').style.background = COLOR[st] || COLOR.live;
+  $('src').textContent = d.has_model ? 'model loaded' : 'no model (train to enable detection)';
+  $('rec').textContent = d.recording ? `● REC ${d.active_label}` : '';
+  $('c_normal').textContent = d.counts.normal;
+  $('c_startup').textContent = d.counts.startup;
+  $('c_stall').textContent = d.counts.stall;
+  $('total').textContent = `${d.total} samples collected`;
+  document.querySelectorAll('button.lab').forEach(b =>
+    b.classList.toggle('active', d.recording && b.dataset.l === d.active_label));
+};
+es.onerror = () => { $('src').textContent = 'stream disconnected — is the server running?'; };
+</script>
+</body>
+</html>

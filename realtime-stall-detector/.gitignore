@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated artifacts
+*.joblib
+model/model.h
+firmware_a2/stall_onboard/model.h
+data/*.csv
+plots/*.png
+plots/*.txt
+
+# OS
+.DS_Store
