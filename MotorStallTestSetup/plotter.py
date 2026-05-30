@@ -9,6 +9,7 @@ normal_filename = '.\\data\\Normal\\rpm_400.csv'
 
 x_data, stalled_data, normal_data = [], [], []
 
+
 with open(stalled_filename, 'r', newline='') as f:
     reader = csv.reader(f)
     next(reader)  # skip header
@@ -38,6 +39,10 @@ with open(normal_filename, 'r', newline='') as f:
         except:
             pass
 
+
+    
+
+
 # --- Normalize time (start from 0, convert to ms if needed) ---
 x_data = np.array(x_data)
 x_data = (x_data - x_data[0]) / 1000.0  # µs → ms
@@ -64,11 +69,47 @@ WINDOW = 5
 y_smooth = np.convolve(stalled_data, np.ones(WINDOW)/WINDOW, mode='same') # --- stalled current
 y2_smooth = np.convolve(normal_data, np.ones(WINDOW)/WINDOW, mode='same') # --- normal current
 
+
+
+# must come from the same file or you get errors!
+def train_additional_function(file_name, index, color, plot):
+    x, y = [], []
+    with open(file_name, 'r', newline='') as f:
+        reader = csv.reader(f)
+        next(reader)  # skip header
+
+        for row in reader:
+            try:
+                t = float(row[0])      # time (µs or ms)
+                current = float(row[index]) * 1000  # convert to C
+
+                x.append(t)
+                y.append(current)
+
+            except:
+                pass
+
+    x = np.array(x)
+    x = (x - x[0]) / 1000.0  # µs → ms
+
+    y = np.array(y)
+    x = x[:len_data]
+    x = x[::DOWNSAMPLE]
+    y = y[:len_data]
+    y = y[::DOWNSAMPLE]
+    y_smothered = np.convolve(y, np.ones(WINDOW)/WINDOW, mode='same') 
+    
+    plot.plot(x, y_smothered, color=color, linewidth=1)
+
+
+
+
 # --- Plot ---
 fig, ax = plt.subplots(figsize=(10, 5))
 
 ax.plot(x_data, y_smooth, color='blue', linewidth=1)
 ax.plot(x_data, y2_smooth, color='green', linewidth=1)
+train_additional_function(normal_filename, 2, 'red', ax)
 
 
 ax.set_xlabel("Time (ms)")
