@@ -1,2 +1,17 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
-*
+Autonomous_Fleets/esp32_firmware/env.h
+Autonomous_Fleets/python_scripts/__pycache__/*
+Collaborative_Robotics/__pycache__/*
+Collaborative_Robotics/lib/__pycache__/*
+Fault_Prediction/MotorStallTestSetup/data/*
+Fault_Prediction/MotorStallTestSetup/!data/sample_data.csv
+Fault_Prediction/MotorStallTestSetup/plots/*
+Fault_Prediction/MotorStallTestSetup/!plots/sample_plot.png
+
+
+data/
+Data2/
+venv/
+.venv/
+env/
+.vscode/sftp.json
