@@ -7,7 +7,7 @@ import os
 stalled_filename = '.\\data\\Stalled\\rpm_400.csv'
 normal_filename = '.\\data\\Normal\\rpm_400.csv'
 
-x_data, y_data, y_data2 = [], [], []
+x_data, stalled_data, normal_data = [], [], []
 
 with open(stalled_filename, 'r', newline='') as f:
     reader = csv.reader(f)
@@ -19,7 +19,7 @@ with open(stalled_filename, 'r', newline='') as f:
             current = float(row[2]) * 1000  # convert to C
 
             x_data.append(t)
-            y_data.append(current)
+            stalled_data.append(current)
 
         except:
             pass
@@ -31,9 +31,9 @@ with open(normal_filename, 'r', newline='') as f:
     for row in reader:
         try:
             t = float(row[0])      # time (µs or ms)
-            current = float(row[2]) * 1000  # convert to C
+            current = float(row[2]) * 1000  # convert to current
 
-            y_data2.append(current)
+            normal_data.append(current)
 
         except:
             pass
@@ -42,33 +42,33 @@ with open(normal_filename, 'r', newline='') as f:
 x_data = np.array(x_data)
 x_data = (x_data - x_data[0]) / 1000.0  # µs → ms
 
-len_data = min(len(y_data), len(y_data2))
-print(len_data, len(y_data), len(y_data2))
+len_data = min(len(stalled_data), len(normal_data))
+print(len_data, len(stalled_data), len(normal_data))
 
 x_data = x_data[:len_data]
-y_data = np.array(y_data)
-y_data = y_data[:len_data]
-y_data2 = np.array(y_data2)
-y_data2 = y_data2[:len_data]
+stalled_data = np.array(stalled_data)
+stalled_data = stalled_data[:len_data]
+normal_data = np.array(normal_data)
+normal_data = normal_data[:len_data]
 
 # --- Downsample (VERY IMPORTANT for readability) ---
 DOWNSAMPLE = 20   # change to 5–50 depending on density
 x_data = x_data[::DOWNSAMPLE]
-y_data = y_data[::DOWNSAMPLE]
-y_data2 = y_data2[::DOWNSAMPLE]
-print(len_data, len(y_data), len(y_data2))
+stalled_data = stalled_data[::DOWNSAMPLE]
+normal_data = normal_data[::DOWNSAMPLE]
+print(len_data, len(stalled_data), len(normal_data))
 
 
 # --- smooth signal (moving average) ---
 WINDOW = 5
-y_smooth = np.convolve(y_data, np.ones(WINDOW)/WINDOW, mode='same')
-y2_smooth = np.convolve(y_data2, np.ones(WINDOW)/WINDOW, mode='same')
+y_smooth = np.convolve(stalled_data, np.ones(WINDOW)/WINDOW, mode='same')
+y2_smooth = np.convolve(normal_data, np.ones(WINDOW)/WINDOW, mode='same')
 
 # --- Plot ---
 fig, ax = plt.subplots(figsize=(10, 5))
 
-ax.plot(x_data, y_smooth, linewidth=1)
-ax.plot(x_data, y2_smooth, linewidth=1)
+ax.plot(x_data, y_smooth, color='blue', linewidth=1)
+ax.plot(x_data, y2_smooth, color='green', linewidth=1)
 
 
 ax.set_xlabel("Time (ms)")
