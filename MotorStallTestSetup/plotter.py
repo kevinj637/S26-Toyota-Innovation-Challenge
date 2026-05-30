@@ -72,7 +72,7 @@ y2_smooth = np.convolve(normal_data, np.ones(WINDOW)/WINDOW, mode='same') # --- 
 
 
 # must come from the same file or you get errors!
-def train_additional_function(file_name, index, color, plot):
+def train_additional_function(file_name, index, color, plot, multiplier = 1):
     x, y = [], []
     with open(file_name, 'r', newline='') as f:
         reader = csv.reader(f)
@@ -81,7 +81,7 @@ def train_additional_function(file_name, index, color, plot):
         for row in reader:
             try:
                 t = float(row[0])      # time (µs or ms)
-                current = float(row[index]) * 1000  # convert to C
+                current = float(row[index]) * multiplier  # convert to C
 
                 x.append(t)
                 y.append(current)
