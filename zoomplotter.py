@@ -53,14 +53,53 @@ type colour = str
 type YCol = tuple[str, int | str, colour, float, float]
 
 
+def find_windows(series, thresh=None, k=3.0, min_len=20, min_gap=20):
+    """Auto-detect stress regions: contiguous runs where `series` sits above a
+    threshold. Use this when you DON'T have a window list from a detector — it just
+    reads the signal and flags the spikes.
+
+    thresh : level that counts as 'stressed'. If None, uses mean + k*std of the
+             signal, which adapts to whatever baseline/noise the channel has.
+    min_len: drop runs shorter than this (kills single-sample noise blips).
+    min_gap: merge two runs separated by fewer than this many samples (so one event
+             that briefly dips under the line isn't split into two).
+
+    Returns a list of (start, end) sample-index tuples.
+    """
+    series = np.asarray(series, float)
+    if thresh is None:
+        thresh = series.mean() + k * series.std()
+    hot = series > thresh
+    edges = np.diff(hot.astype(int))
+    starts = list(np.where(edges == 1)[0] + 1)
+    ends = list(np.where(edges == -1)[0] + 1)
+    if hot[0]:
+        starts = [0] + starts
+    if hot[-1]:
+        ends = ends + [len(series)]
+    runs = list(zip(starts, ends))
+
+    merged = []  # merge runs that are closer than min_gap
+    for s, e in runs:
+        if merged and s - merged[-1][1] < min_gap:
+            merged[-1] = (merged[-1][0], e)
+        else:
+            merged.append((s, e))
+    out = [(s, e) for s, e in merged if e - s >= min_len]
+    print(f"find_windows: thresh={thresh:.2f} -> {len(out)} regions")
+    return out
+
+
 def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None, max_files=20,
                      smooth=True, export_prefix='MotorStallTestSetup/plots/zoom'):
     """One zoomed figure per stress window, saved as a separate PNG.
 
     file_name : the CSV (e.g. robot_7_...).
     windows   : list of (start, end) SAMPLE INDICES marking each red stress window.
-                This is the piece you supply from your detection script. If you only
-                have a centre + width, pass [(c - w//2, c + w//2), ...].
+                Pass None to AUTO-DETECT them from the first yCol (spikes above
+                mean + 3*std) — that's how you get dozens of files without a
+                hand-typed list. If you only have a centre + width, pass
+                [(c - w//2, c + w//2), ...].
     yCols     : same tuples newplotters.py uses. Each gets its OWN stacked subplot
                 sharing the x-axis (current and velocity have wildly different scales,
                 so stacking beats the single-axis-with-offsets trick — you can read
@@ -82,6 +121,10 @@ def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None, max_files=
         print("No data parsed from file.")
         return
 
+    if windows is None:  # auto-detect from the first signal
+        detect_idx = col_to_index(yCols[0][1])
+        series = cols[detect_idx] * yCols[0][3] + yCols[0][4]
+        windows = find_windows(series)
     windows = [(int(s), int(e)) for s, e in windows]
     total = len(windows)
     if max_files is not None and total > max_files:  # even spread across the run
@@ -226,9 +269,13 @@ if __name__ == "__main__":
     cur = ('|current_3| (A)', 'T', 'green', 1, 0)
     vel = ('|velocity| (deg/s)', 'AB', 'blue', 1, 0)  # <- confirm this column letter
 
-    # per-window detailed plots (one PNG each — fine for a handful)
-    graphZoomWindows(normal_filename, stress_windows, [cur, vel])
+    # No window list needed: auto-detect spikes and dump up to 20 zoom files
+    # spread across the whole run.
+    graphZoomWindows(normal_filename, None, [cur, vel], max_files=20)
 
-    # ALL windows at once:
-    graphAllWindowsOverlay(normal_filename, stress_windows, [cur, vel])  # superimposed
-    graphWindowGrid(normal_filename, stress_windows, cur)                # contact sheet
+    # Or, if you DO have windows from your detector, pass them instead of None.
+    # graphZoomWindows(normal_filename, stress_windows, [cur, vel])
+
+    graphAllWindowsOverlay(normal_filename, find_windows(  # all events superimposed
+        _read_columns(normal_filename, [col_to_index('T')])[1][col_to_index('T')]),
+        [cur, vel])
