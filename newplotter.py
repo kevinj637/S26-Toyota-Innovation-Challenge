@@ -222,8 +222,10 @@ def graphByTimeRange(file_name, midtime, interval, yCols: list[YCol], export_fil
 #     ('Temperature (C)', 'AB', 'blue', 1, -30),
 #     ])
 
-graphByTimeRange(normal_filename, 3.8e13, 1.0e13, [
+graphByTimeRange(normal_filename, 4.37e13, 0.5e12, [
     ('Current (A)', 'T', 'green', 1, 0),
     ('Temperature (C)', 'AB', 'blue', 1, -30),
+    ('Step Counter', 'B', 'red', 0.001, 0),
+    ('Program Number', 'C', 'black', 0.2, 0),
     ])
 
