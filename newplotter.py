@@ -4,7 +4,8 @@ import numpy as np
 import csv
 import os
 
-file_name = '.\\data\\robot_7_2026-02-17.csv'
+normal_filename = '.\\data\\robot_7_2026-02-17.csv'
+stalled_filename = '.\\MotorStallTestSetup\\data\\Normal\\rpm_400.csv'
 
 
 #CONSTANTS MANAGEMENT
@@ -102,6 +103,115 @@ def train_additional_function_lims(file_name, loc, around, index: str | int, col
     else:
         plot.plot(x, y_smothered, color=color, linewidth=1)
     print(f"Finished index {index}")
+
+
+def train_joint_velocity(file_name, joint_index, color, plot: plt.Axes):
+    print(f"Plotting joint velocity {joint_index}")
+
+    x, angles = [], []
+
+    with open(file_name, 'r', newline='') as f:
+        reader = csv.reader(f)
+        next(reader)
+
+        for row in reader:
+            try:
+                t = float(row[0])
+                angle = float(row[joint_index])
+
+                x.append(t)
+                angles.append(angle)
+
+            except:
+                pass
+
+    x = np.array(x)
+    angles = np.array(angles)
+
+    # convert timestamps to seconds
+    x = (x - x[0]) / 1000.0
+
+    # derivative
+    dt = np.diff(x)
+    dtheta = np.diff(angles)
+
+    velocity = np.divide(
+        dtheta,
+        dt,
+        out=np.zeros_like(dtheta),
+        where=dt != 0
+    )
+
+    x_vel = x[1:]
+
+    # downsample
+    x_vel = x_vel[::DOWNSAMPLE]
+    velocity = velocity[::DOWNSAMPLE]
+
+    # smooth
+    velocity = np.convolve(
+        velocity,
+        np.ones(WINDOW) / WINDOW,
+        mode='same'
+    )
+
+    plot.plot(x_vel, velocity, color=color, linewidth=1)
+
+    print(f"Finished joint velocity {joint_index}")
+
+def train_joint_velocity(file_name, joint_index, color, plot: plt.Axes):
+    print(f"Plotting joint velocity {joint_index}")
+
+    x, angles = [], []
+
+    with open(file_name, 'r', newline='') as f:
+        reader = csv.reader(f)
+        next(reader)
+
+        for row in reader:
+            try:
+                t = float(row[0])
+                angle = float(row[joint_index])
+
+                x.append(t)
+                angles.append(angle)
+
+            except:
+                pass
+
+    x = np.array(x)
+    angles = np.array(angles)
+
+    # convert timestamps to seconds
+    x = (x - x[0]) / 1000.0
+
+    # derivative
+    dt = np.diff(x)
+    dtheta = np.diff(angles)
+
+    velocity = np.divide(
+        dtheta,
+        dt,
+        out=np.zeros_like(dtheta),
+        where=dt != 0
+    )
+
+    x_vel = x[1:]
+
+    # downsample
+    x_vel = x_vel[::DOWNSAMPLE]
+    velocity = velocity[::DOWNSAMPLE]
+
+    # smooth
+    velocity = np.convolve(
+        velocity,
+        np.ones(WINDOW) / WINDOW,
+        mode='same'
+    )
+
+    plot.plot(x_vel, velocity, color=color, linewidth=1)
+
+    print(f"Finished joint velocity {joint_index}")
 
 def create_figure(x_label, y_label):
     fig, ax = plt.subplots(figsize=(10, 5))
