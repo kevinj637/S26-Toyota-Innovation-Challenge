@@ -4,8 +4,8 @@ import numpy as np
 import csv
 import os
 
-stalled_filename = '.\\data\\Stalled\\rpm_400.csv'
-normal_filename = '.\\data\\Normal\\rpm_400.csv'
+stalled_filename = '.\\MotorStallTestSetup\\data\\Normal\\rpm_400.csv'
+normal_filename = '.\\data\\robot_7_2026-02-17.csv'
 
 x_data, stalled_data, normal_data = [], [], []
 
@@ -32,7 +32,7 @@ with open(normal_filename, 'r', newline='') as f:
     for row in reader:
         try:
             t = float(row[0])      # time (µs or ms)
-            current = float(row[2]) * 1000  # convert to current
+            current = float(row[19]) * 1000  # convert to current
 
             normal_data.append(current)
 
@@ -98,7 +98,7 @@ def train_additional_function(file_name, index, color, plot, multiplier = 1):
     y = y[:len_data]
     y = y[::DOWNSAMPLE]
     y_smothered = np.convolve(y, np.ones(WINDOW)/WINDOW, mode='same') 
-    
+    print("Plotting")
     plot.plot(x, y_smothered, color=color, linewidth=1)
 
 
@@ -107,9 +107,16 @@ def train_additional_function(file_name, index, color, plot, multiplier = 1):
 # --- Plot ---
 fig, ax = plt.subplots(figsize=(10, 5))
 
-ax.plot(x_data, y_smooth, color='blue', linewidth=1)
-ax.plot(x_data, y2_smooth, color='green', linewidth=1)
-train_additional_function(normal_filename, 2, 'red', ax)
+ax.plot(x_data, y_smooth, color='black', linewidth=1)
+ax.plot(x_data, y2_smooth, color='red', linewidth=1)
+train_additional_function(normal_filename, 20, 'orange', ax)
+train_additional_function(normal_filename, 21, 'yellow', ax)
+train_additional_function(normal_filename, 22, 'green', ax)
+train_additional_function(normal_filename, 23, 'teal', ax)
+train_additional_function(normal_filename, 24, 'blue', ax)
+train_additional_function(normal_filename, 25, 'indigo', ax)
+train_additional_function(normal_filename, 26, 'purple', ax)
+
 
 
 ax.set_xlabel("Time (ms)")
@@ -122,5 +129,5 @@ ax.yaxis.set_major_locator(ticker.MaxNLocator(8))
 ax.grid(True, linestyle='--', alpha=0.5)
 
 plt.tight_layout()
-plt.savefig('plots/plot.png')
+plt.savefig('MotorStallTestSetup/plots/plot.png')
 plt.show()
