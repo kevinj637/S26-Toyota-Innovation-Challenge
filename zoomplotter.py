@@ -53,7 +53,7 @@ type colour = str
 type YCol = tuple[str, int | str, colour, float, float]
 
 
-def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None,
+def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None, max_files=20,
                      smooth=True, export_prefix='MotorStallTestSetup/plots/zoom'):
     """One zoomed figure per stress window, saved as a separate PNG.
 
@@ -67,6 +67,10 @@ def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None,
                 each shape on its own).
     pad       : context samples shown on each side of the window. Defaults to one
                 full window-width, so you see the lead-in and the recovery.
+    max_files : cap on how many PNGs to emit. If you pass more windows than this,
+                it samples them EVENLY across the run (early to late), so you get a
+                representative spread of time periods instead of either two files or
+                two thousand. Set to None to dump every window.
 
     NOTE: no downsampling here on purpose. The whole point of a zoom is detail, and
     these slices are small enough to draw every point.
@@ -78,8 +82,14 @@ def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None,
         print("No data parsed from file.")
         return
 
+    windows = [(int(s), int(e)) for s, e in windows]
+    total = len(windows)
+    if max_files is not None and total > max_files:  # even spread across the run
+        sel = np.linspace(0, total - 1, max_files).round().astype(int)
+        windows = [windows[i] for i in sel]
+    print(f"Rendering {len(windows)} of {total} windows...")
+
     for w_i, (start, end) in enumerate(windows):
-        start, end = int(start), int(end)
         w_pad = pad if pad is not None else max(1, end - start)
         lo = max(0, start - w_pad)
         hi = min(n, end + w_pad)
@@ -112,11 +122,113 @@ def graphZoomWindows(file_name, windows, yCols: list[YCol], pad=None,
         print(f"Saved {out}")
 
 
+def graphAllWindowsOverlay(file_name, windows, yCols: list[YCol], pad=50,
+                           export_file='MotorStallTestSetup/plots/overlay.png'):
+    """ALL windows on ONE figure, each aligned to its own start (x=0) and drawn
+    translucent on top of each other, with a bold mean curve. This is the view that
+    answers 'what does a stress event typically look like, and how consistent are
+    they?' — tight overlap = a reliable signature, scatter = noisy windows.
+
+    Scales to thousands of windows (unlike one-PNG-per-window). One stacked subplot
+    per signal, sharing the relative-sample x-axis.
+    """
+    col_indices = sorted({col_to_index(c[1]) for c in yCols})
+    times, cols = _read_columns(file_name, col_indices)
+    n = len(times)
+    if n == 0 or not windows:
+        print("No data / no windows.")
+        return
+
+    windows = [(int(s), int(e)) for s, e in windows]
+    Lmin = min(e - s for s, e in windows)  # shortest window, for the mean region
+
+    fig, axes = plt.subplots(len(yCols), 1, figsize=(10, 2.6 * len(yCols)),
+                             sharex=True)
+    if len(yCols) == 1:
+        axes = [axes]
+
+    for ax, (name, idx, color, mult, off) in zip(axes, yCols):
+        series = cols[col_to_index(idx)] * mult + off
+        stack = []  # in-window portions, truncated to Lmin, for the mean
+        for s, e in windows:
+            lo, hi = max(0, s - pad), min(n, e + pad)
+            rel = np.arange(lo - s, hi - s)  # 0 == window start
+            ax.plot(rel, series[lo:hi], color=color, alpha=0.04, linewidth=0.6)
+            w = series[s:s + Lmin]
+            if len(w) == Lmin:
+                stack.append(w)
+        if stack:
+            mean = np.mean(stack, axis=0)
+            ax.plot(np.arange(Lmin), mean, color='black', linewidth=1.8,
+                    label=f"{name} mean (n={len(stack)})")
+        ax.axvspan(0, Lmin, color='red', alpha=0.08)  # typical window extent
+        ax.axvline(0, color='red', linewidth=0.8, alpha=0.6)
+        ax.set_ylabel(name)
+        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.legend(loc='upper right', fontsize=8)
+
+    axes[0].set_title(f"All {len(windows)} stress windows, aligned to start")
+    axes[-1].set_xlabel("Samples relative to window start")
+    fig.tight_layout()
+    fig.savefig(export_file, dpi=120)
+    plt.close(fig)
+    print(f"Saved {export_file}")
+
+
+def graphWindowGrid(file_name, windows, yCol: YCol, pad=50, max_panels=24,
+                    cols_per_row=6, export_file='MotorStallTestSetup/plots/grid.png'):
+    """Contact sheet: a grid of small zoomed panels, one per window, for ONE signal.
+    If there are more windows than max_panels, it samples them evenly so the sheet
+    stays readable and still spans the whole run. Call again with a different yCol
+    (e.g. velocity) for that signal's sheet.
+    """
+    name, idx, color, mult, off = yCol
+    ci = col_to_index(idx)
+    times, cols = _read_columns(file_name, [ci])
+    n = len(times)
+    if n == 0 or not windows:
+        print("No data / no windows.")
+        return
+    series = cols[ci] * mult + off
+
+    windows = [(int(s), int(e)) for s, e in windows]
+    total = len(windows)
+    if total > max_panels:  # even spread across the run, not just the first few
+        sel = np.linspace(0, total - 1, max_panels).round().astype(int)
+        windows = [windows[i] for i in sel]
+
+    rows = int(np.ceil(len(windows) / cols_per_row))
+    fig, axes = plt.subplots(rows, cols_per_row,
+                             figsize=(2.0 * cols_per_row, 1.6 * rows))
+    axes = np.array(axes).reshape(-1)
+    for ax, (s, e) in zip(axes, windows):
+        lo, hi = max(0, s - pad), min(n, e + pad)
+        rel = np.arange(lo - s, hi - s)
+        ax.plot(rel, series[lo:hi], color=color, linewidth=0.7)
+        ax.axvspan(0, e - s, color='red', alpha=0.15)
+        ax.set_title(f"{s}", fontsize=7)
+        ax.tick_params(labelsize=6)
+    for ax in axes[len(windows):]:  # blank the unused cells
+        ax.axis('off')
+
+    fig.suptitle(f"{name}: showing {len(windows)} of {total} windows", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(export_file, dpi=120)
+    plt.close(fig)
+    print(f"Saved {export_file}")
+
+
 # ---- Example usage (set the velocity column letter to whatever it is in your CSV) ----
 if __name__ == "__main__":
     normal_filename = r'.\data\robot_7_2026-02-17.csv'
     stress_windows = [(16000, 16400), (30500, 30900)]  # <- from your detection script
-    graphZoomWindows(normal_filename, stress_windows, [
-        ('|current_3| (A)', 'T', 'green', 1, 0),
-        ('|velocity| (deg/s)', 'AB', 'blue', 1, 0),  # <- confirm this column letter
-    ])
+
+    cur = ('|current_3| (A)', 'T', 'green', 1, 0)
+    vel = ('|velocity| (deg/s)', 'AB', 'blue', 1, 0)  # <- confirm this column letter
+
+    # per-window detailed plots (one PNG each — fine for a handful)
+    graphZoomWindows(normal_filename, stress_windows, [cur, vel])
+
+    # ALL windows at once:
+    graphAllWindowsOverlay(normal_filename, stress_windows, [cur, vel])  # superimposed
+    graphWindowGrid(normal_filename, stress_windows, cur)                # contact sheet
