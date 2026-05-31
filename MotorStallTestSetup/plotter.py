@@ -10,14 +10,14 @@ normal_filename = '.\\data\\robot_7_2026-02-17.csv'
 x_data, stalled_data, normal_data = [], [], []
 
 
-with open(stalled_filename, 'r', newline='') as f:
+with open(normal_filename, 'r', newline='') as f:
     reader = csv.reader(f)
     next(reader)  # skip header
 
     for row in reader:
         try:
             t = float(row[0])      # time (µs or ms)
-            current = float(row[2]) * 1000  # convert to C
+            current = float(row[20])  # convert to C
 
             x_data.append(t)
             stalled_data.append(current)
@@ -93,13 +93,14 @@ def train_additional_function(file_name, index, color, plot, multiplier = 1):
     x = (x - x[0]) / 1000.0  # µs → ms
 
     y = np.array(y)
-    x = x[:len_data]
+    common_len = min(len_data, len(x), len(y))
+    x = x[:common_len]
+    y = y[:common_len]
     x = x[::DOWNSAMPLE]
-    y = y[:len_data]
     y = y[::DOWNSAMPLE]
-    y_smothered = np.convolve(y, np.ones(WINDOW)/WINDOW, mode='same') 
+    y_smothered = np.convolve(y, np.ones(WINDOW)/WINDOW, mode='same')
     print("Plotting")
-    plot.plot(x, y_smothered, color=color, linewidth=1)
+    plot.plot(x_data, y_smothered, color=color, linewidth=1)
 
 
 
