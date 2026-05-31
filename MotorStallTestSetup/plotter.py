@@ -118,8 +118,6 @@ train_additional_function(normal_filename, 24, 'blue', ax)
 train_additional_function(normal_filename, 25, 'indigo', ax)
 train_additional_function(normal_filename, 26, 'purple', ax)
 
-
-
 ax.set_xlabel("Time (ms)")
 ax.set_ylabel("Current (mA)")
 ax.set_title("Motor Current vs Time")
