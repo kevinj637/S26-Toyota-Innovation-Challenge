@@ -3,3 +3,11 @@ matplotlib>=1.0.0
 pandas>=2.5.0
 xgboost>=3.0.0
 scipy>=1.15.0
+numpy
+pandas
+scikit-learn
+matplotlib
+pyserial
+joblib
+pytest
+flask

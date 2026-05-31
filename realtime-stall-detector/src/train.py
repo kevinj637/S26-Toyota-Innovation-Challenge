@@ -58,6 +58,7 @@ if __name__ == "__main__":
     ap.add_argument("--model", default="model/tree.joblib")
     args = ap.parse_args()
     X, y = build_dataset(args.data)
+    print(X,y)
     clf, info = train_model(X, y)
     print(info["report"])
     print("Confusion (rows=true", info["labels"], "):\n", info["confusion"])
