@@ -10,11 +10,20 @@ file_name = '.\\data\\robot_7_2026-02-17.csv'
 #CONSTANTS MANAGEMENT
 WINDOW = 5 # Convolution average
 DOWNSAMPLE = 20   # change to 5–50 depending on density
-LEN_DATA = 10000000000
+LEN_DATA = 10000000000 # limit for now
 
 
 # must come from the same file or you get errors!
-def train_additional_function(file_name, index, color, plot: plt.Axes, multiplier = 1):
+def train_additional_function(file_name, index: str | int, color, plot: plt.Axes, multiplier = 1):
+    if isinstance(index, str):
+        index = index.lower()
+        if(len(index) > 2):
+            return TypeError("index not valid")
+        if(len(index) == 2):
+            index = (ord(index[0]) - (ord('a') - 1)) * 26 + ord(index[1]) - ord('a')
+        else:
+            index = (ord(index) - ord('a'))
+    print(index)
     print(f"Plotting index {index}")
     x, y = [], []
     with open(file_name, 'r', newline='') as f:
@@ -34,7 +43,7 @@ def train_additional_function(file_name, index, color, plot: plt.Axes, multiplie
     len_data = min(len(x), LEN_DATA)
 
     x = np.array(x)
-    x = (x - x[0]) / 1000.0  # µs → ms
+    x = (x - x[0]) # µs → ms
 
     print(f"Almost done index {index}")
     y = np.array(y)
@@ -45,7 +54,7 @@ def train_additional_function(file_name, index, color, plot: plt.Axes, multiplie
     y_smothered = np.convolve(y, np.ones(WINDOW)/WINDOW, mode='same') 
     plot.plot(x, y_smothered, color=color, linewidth=1)
     print(f"Finished index {index}")
-
+    print(x[0], max(x), x[1000])
 
 def create_figure(x_label, y_label):
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -58,9 +67,6 @@ def create_figure(x_label, y_label):
 
 def print_figure(ax: plt.Axes, file_name = 'MotorStallTestSetup/plots/plot.png', show = False):
 
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(8))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(8))
-
     ax.grid(True, linestyle='--', alpha=0.5)
 
     plt.tight_layout()
@@ -69,5 +75,5 @@ def print_figure(ax: plt.Axes, file_name = 'MotorStallTestSetup/plots/plot.png',
         plt.show()
 
 fig1, ax1 = create_figure("Time (s)", "Current (A)")
-train_additional_function(file_name, 19, 'green', ax1)
-print_figure(ax1)
+train_additional_function(file_name, 'AB', 'green', ax1)
+print_figure(ax1, show=True)
