@@ -54,12 +54,14 @@ type YCol = tuple[str, int | str, colour, float, float]
 
 
 def find_windows(series, thresh=None, k=3.0, min_len=20, min_gap=20):
-    """Auto-detect stress regions: contiguous runs where `series` sits above a
-    threshold. Use this when you DON'T have a window list from a detector — it just
-    reads the signal and flags the spikes.
+    """Auto-detect stress regions: contiguous runs where `series` deviates strongly
+    from its baseline. Use this when you DON'T have a window list from a detector.
 
-    thresh : level that counts as 'stressed'. If None, uses mean + k*std of the
-             signal, which adapts to whatever baseline/noise the channel has.
+    Triggers on ABSOLUTE deviation from the median, so it catches spikes whether the
+    signal swings positive OR negative (real current oscillates around zero; a
+    one-sided 'above mean' test would miss the negative excursions).
+
+    thresh : deviation magnitude that counts as 'stressed'. If None, uses k * std.
     min_len: drop runs shorter than this (kills single-sample noise blips).
     min_gap: merge two runs separated by fewer than this many samples (so one event
              that briefly dips under the line isn't split into two).
@@ -67,9 +69,13 @@ def find_windows(series, thresh=None, k=3.0, min_len=20, min_gap=20):
     Returns a list of (start, end) sample-index tuples.
     """
     series = np.asarray(series, float)
+    if series.size == 0:
+        return []
+    baseline = np.median(series)
+    dev = np.abs(series - baseline)
     if thresh is None:
-        thresh = series.mean() + k * series.std()
-    hot = series > thresh
+        thresh = k * series.std()
+    hot = dev > thresh
     edges = np.diff(hot.astype(int))
     starts = list(np.where(edges == 1)[0] + 1)
     ends = list(np.where(edges == -1)[0] + 1)
@@ -178,10 +184,16 @@ def graphAllWindowsOverlay(file_name, windows, yCols: list[YCol], pad=50,
     col_indices = sorted({col_to_index(c[1]) for c in yCols})
     times, cols = _read_columns(file_name, col_indices)
     n = len(times)
-    if n == 0 or not windows:
-        print("No data / no windows.")
+    if n == 0:
+        print("No data.")
         return
 
+    if windows is None:  # auto-detect from the first signal
+        first = cols[col_to_index(yCols[0][1])] * yCols[0][3] + yCols[0][4]
+        windows = find_windows(first)
+    if not windows:
+        print("No windows.")
+        return
     windows = [(int(s), int(e)) for s, e in windows]
     Lmin = min(e - s for s, e in windows)  # shortest window, for the mean region
 
@@ -229,11 +241,16 @@ def graphWindowGrid(file_name, windows, yCol: YCol, pad=50, max_panels=24,
     ci = col_to_index(idx)
     times, cols = _read_columns(file_name, [ci])
     n = len(times)
-    if n == 0 or not windows:
-        print("No data / no windows.")
+    if n == 0:
+        print("No data.")
         return
     series = cols[ci] * mult + off
 
+    if windows is None:  # auto-detect from this signal
+        windows = find_windows(series)
+    if not windows:
+        print("No windows.")
+        return
     windows = [(int(s), int(e)) for s, e in windows]
     total = len(windows)
     if total > max_panels:  # even spread across the run, not just the first few
